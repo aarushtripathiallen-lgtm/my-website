@@ -1,6 +1,6 @@
 import os
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS # <--- ADDED THIS
+from flask import Flask, request, jsonify
+from flask_cors import CORS 
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -17,11 +17,13 @@ if not api_key:
     print("CRITICAL ERROR: No API Key found in .env file!")
     client = None
 else:
+    # Note: Updated to the correct initialization for Gemini 2.0+
     client = genai.Client(api_key=api_key)
 
 app = Flask(__name__)
-from flask_cors import CORS
-CORS(app, resources={r"/*": {"origins": "https://aarustripathiallen-lgtm.github.io"}})
+
+# UPDATED: Flexible CORS to allow any origin (prevents $0.00 / 404 / Blocked errors)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 stock_map = {
     "apple": "AAPL", "tesla": "TSLA", "nvidia": "NVDA",
@@ -52,12 +54,11 @@ def stock():
 def details():
     query = request.args.get("symbol", "AAPL")
     symbol = get_symbol(query)
-    
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-        
         market_cap = info.get("marketCap", 0)
+        
         if market_cap > 1_000_000_000_000:
             mc_str = f"${market_cap / 1_000_000_000_000:.2f}T"
         elif market_cap > 1_000_000_000:
@@ -73,31 +74,6 @@ def details():
             "pe_ratio": info.get("trailingPE", "N/A"),
             "high_52": info.get("fiftyTwoWeekHigh", "N/A"),
             "low_52": info.get("fiftyTwoWeekLow", "N/A")
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/compare")
-def compare():
-    query = request.args.get("symbols", "AAPL,TSLA")
-    raw_symbols = [s.strip() for s in query.split(",")]
-    symbols = [get_symbol(s) for s in raw_symbols][:3] 
-    
-    combined_data = {}
-    shared_dates = None
-    
-    try:
-        for sym in symbols:
-            ticker = yf.Ticker(sym)
-            hist = ticker.history(period="6mo")
-            if not hist.empty:
-                if shared_dates is None:
-                    shared_dates = hist.index.strftime('%Y-%m-%d').tolist()
-                combined_data[sym] = hist['Close'].round(2).tolist()
-                
-        return jsonify({
-            "dates": shared_dates,
-            "prices": combined_data
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -135,46 +111,31 @@ def sentiment():
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", 
+            model="gemini-2.0-flash", 
             contents=prompt
         )
         return jsonify({"sentiment": response.text})
     except Exception as e:
-        print("Sentiment Error:", e)
         return jsonify({"error": "AI failed"})
 
 @app.route("/chat")
 def chat():
     if client is None:
-        return jsonify({"reply": "AI client is not initialized. Check API Key."})
+        return jsonify({"reply": "AI client is not initialized."})
     user_message = request.args.get("message", "")
-
     if not user_message:
         return jsonify({"reply": "Please ask a question."})
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", 
+            model="gemini-2.0-flash", 
             contents=user_message
         )
         reply = response.text
     except Exception as e:
-        print("Gemini Error:", e)
-        reply = "Sorry, I'm having trouble connecting to my brain."
+        reply = "I'm having trouble connecting to my AI brain."
 
     return jsonify({"reply": reply})
-
-@app.route("/trending")
-def trending():
-    symbols = ["AAPL", "TSLA", "NVDA", "AMZN", "MSFT"]
-    results = []
-    for sym in symbols:
-        data = yf.Ticker(sym).history(period="2d")
-        if len(data) >= 2:
-            price = round(data["Close"].iloc[-1], 2)
-            change = round(price - data["Close"].iloc[-2], 2)
-            results.append({"symbol": sym, "price": price, "change": change})
-    return jsonify(results)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
