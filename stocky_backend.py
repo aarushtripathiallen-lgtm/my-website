@@ -36,10 +36,6 @@ def get_symbol(query):
     query = query.lower().strip()
     return stock_map.get(query, query.upper())
 
-@app.route("/")
-def home():
-    return render_template("index.html")
-
 @app.route("/stock")
 def stock():
     query = request.args.get("symbol", "AAPL")
