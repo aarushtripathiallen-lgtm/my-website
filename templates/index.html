@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stocky - Financial Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 0.75rem; }
+        /* Custom scrollbar for chat */
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 font-sans pb-24">
+
+    <nav class="flex justify-between items-center mb-8 glass-panel p-4">
+        <h1 class="text-2xl font-bold text-blue-400">📈 Stocky Finance</h1>
+        <div class="flex gap-2">
+            <input type="text" id="searchInput" placeholder="Search symbol (e.g. TSLA)" 
+                   class="px-4 py-2 rounded bg-slate-800 border border-slate-600 focus:outline-none focus:border-blue-400 text-white w-40 md:w-64">
+            <button onclick="loadDashboard()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold transition">Search</button>
+        </div>
+    </nav>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <aside class="lg:col-span-1 glass-panel p-4 h-fit">
+            <h2 class="text-xl font-bold mb-4 border-b border-slate-600 pb-2">⭐ Watchlist</h2>
+            <ul id="watchlist" class="space-y-3"></ul>
+            <button onclick="addToWatchlist()" class="mt-4 w-full bg-slate-700 hover:bg-slate-600 py-2 rounded text-sm transition">+ Add Current</button>
+        </aside>
+
+        <main class="lg:col-span-3 space-y-6">
+            <div class="glass-panel p-6 flex flex-wrap justify-between items-end gap-4">
+                <div>
+                    <h2 id="tickerName" class="text-4xl font-black tracking-tight uppercase">TSLA</h2>
+                    <div class="flex items-baseline gap-3 mt-2">
+                        <span id="currentPrice" class="text-3xl font-bold">$0.00</span>
+                        <span id="priceChange" class="text-lg font-medium text-green-400">+0.00</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-sm">
+                    <div><p class="text-slate-400">Market Cap</p><p id="marketCap" class="font-bold text-lg">-</p></div>
+                    <div><p class="text-slate-400">P/E Ratio</p><p id="peRatio" class="font-bold text-lg">-</p></div>
+                    <div><p id="h52label" class="text-slate-400">52W High</p><p id="high52" class="font-bold text-lg">-</p></div>
+                    <div><p id="l52label" class="text-slate-400">52W Low</p><p id="low52" class="font-bold text-lg">-</p></div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 h-96 relative">
+                <canvas id="stockChart"></canvas>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold mb-3 text-purple-400">🧠 AI Trend Prediction</h3>
+                    <p id="aiPredictionText" class="text-slate-300 text-sm italic">Loading forecast...</p>
+                </div>
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold mb-3 text-blue-400">📰 News Sentiment</h3>
+                    <p id="newsSentimentText" class="text-slate-300 text-sm italic">Analyzing headlines...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="chat-container" class="fixed bottom-6 right-6 z-[9999]">
+        <button onclick="toggleChat()" class="bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 flex items-center justify-center w-14 h-14">
+            <span class="text-2xl">💬</span>
+        </button>
+
+        <div id="chat-window" class="hidden absolute bottom-20 right-0 w-80 md:w-96 glass-panel flex flex-col shadow-2xl border border-blue-500/30 overflow-hidden" style="height: 480px; background: #1e293b;">
+            <div class="bg-blue-600 p-4 font-bold flex justify-between items-center">
+                <span>Stocky AI Assistant</span>
+                <button onclick="toggleChat()" class="hover:text-slate-300">✕</button>
+            </div>
+            <div id="chat-messages" class="flex-grow p-4 overflow-y-auto space-y-4 text-sm bg-slate-900/80">
+                <div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">Hello! I'm Stocky. Ask me about stock prices, trends, or news!</div>
+            </div>
+            <div class="p-4 border-t border-slate-700 flex gap-2 bg-slate-800">
+                <input type="text" id="chatInput" placeholder="Type a message..." 
+                       class="flex-grow bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-white">
+                <button onclick="sendChatMessage()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold transition">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChart = null;
+
+        window.onload = () => {
+            loadDashboard('TSLA');
+            renderWatchlist();
+        };
+
+        // DASHBOARD LOGIC
+        async function loadDashboard(symbol = null) {
+            const query = symbol || document.getElementById('searchInput').value || 'TSLA';
+            
+            // Check for comparison mode
+            if (query.includes(',')) {
+                enableComparisonMode(query);
+                return;
+            }
+
+            // Fetch details
+            fetch(`/details?symbol=${query}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('tickerName').innerText = data.symbol;
+                    document.getElementById('currentPrice').innerText = `$${data.price}`;
+                    const changeEl = document.getElementById('priceChange');
+                    changeEl.innerText = data.change > 0 ? `+${data.change}` : data.change;
+                    changeEl.className = data.change >= 0 ? "text-lg font-medium text-green-400" : "text-lg font-medium text-red-400";
+                    document.getElementById('marketCap').innerText = data.market_cap;
+                    document.getElementById('peRatio').innerText = data.pe_ratio;
+                    document.getElementById('high52').innerText = `$${data.high_52}`;
+                    document.getElementById('low52').innerText = `$${data.low_52}`;
+                });
+
+            // Fetch Chart
+            fetch(`/stock?symbol=${query}`)
+                .then(res => res.json())
+                .then(data => drawChart(data.dates, [{ label: 'Price', data: data.prices, isMain: true }]));
+
+            // AI Updates
+            updateAIPanels(query);
+        }
+
+        function drawChart(dates, datasets, isComparison = false) {
+            const ctx = document.getElementById('stockChart').getContext('2d');
+            if (currentChart) currentChart.destroy();
+            
+            if (!isComparison && datasets[0].isMain) {
+                const prices = datasets[0].data;
+                const isUp = prices[prices.length - 1] >= prices[0];
+                datasets[0].borderColor = isUp ? '#22c55e' : '#ef4444';
+                datasets[0].backgroundColor = isUp ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+                datasets[0].fill = true;
+            }
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: dates, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: isComparison, labels: { color: '#f8fafc' } } },
+                    scales: {
+                        x: { display: false },
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function updateAIPanels(query) {
+            fetch(`/predict?symbol=${query}`).then(res => res.json()).then(data => {
+                document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
+            });
+            fetch(`/sentiment?symbol=${query}`).then(res => res.json()).then(data => {
+                document.getElementById('newsSentimentText').innerText = data.sentiment;
+            });
+        }
+
+        // CHATBOT LOGIC
+        function toggleChat() {
+            const win = document.getElementById('chat-window');
+            win.classList.toggle('hidden');
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            const box = document.getElementById('chat-messages');
+
+            if (!msg) return;
+
+            box.innerHTML += `<div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">${msg}</div>`;
+            input.value = '';
+
+            fetch(`/chat?message=${encodeURIComponent(msg)}`)
+                .then(res => res.json())
+                .then(data => {
+                    box.innerHTML += `<div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">${data.reply}</div>`;
+                    box.scrollTop = box.scrollHeight;
+                })
+                .catch(() => {
+                    box.innerHTML += `<div class="text-red-400 italic text-xs">Offline... check terminal</div>`;
+                });
+        }
+
+        // Enter key to send
+        document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+
+        // WATCHLIST
+        function renderWatchlist() {
+            const list = document.getElementById('watchlist');
+            const stocks = JSON.parse(localStorage.getItem('stocks')) || ['TSLA', 'AAPL', 'NVDA'];
+            list.innerHTML = stocks.map(s => `
+                <li class="flex justify-between items-center bg-slate-800/50 p-2 rounded hover:bg-slate-700 transition cursor-pointer">
+                    <span onclick="loadDashboard('${s}')" class="font-bold">${s}</span>
+                    <button onclick="removeFromWatchlist('${s}')" class="text-red-400">✕</button>
+                </li>
+            `).join('');
+        }
+
+        function addToWatchlist() {
+            const s = document.getElementById('tickerName').innerText;
+            const stocks = JSON.parse(localStorage.getItem('stocks')) || [];
+            if (!stocks.includes(s)) { stocks.push(s); localStorage.setItem('stocks', JSON.stringify(stocks)); renderWatchlist(); }
+        }
+
+        function removeFromWatchlist(s) {
+            let stocks = JSON.parse(localStorage.getItem('stocks')) || [];
+            stocks = stocks.filter(x => x !== s);
+            localStorage.setItem('stocks', JSON.stringify(stocks));
+            renderWatchlist();
+        }
+    </script>
+</body>
+</html>
