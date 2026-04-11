@@ -88,8 +88,8 @@
 
     <script>
         let currentChart = null;
-        
-        // IMPORTANT: Updated to your Render URL
+
+        // CRITICAL FIX: Points to your Render server instead of GitHub
         const BASE_URL = "https://stocky-api-7x6p.onrender.com";
 
         window.onload = () => {
@@ -101,11 +101,10 @@
             const query = symbol || document.getElementById('searchInput').value || 'TSLA';
             
             if (query.includes(',')) {
-                // Comparison mode logic can be added here if needed
                 return;
             }
 
-            // 1. Fetch Details
+            // Updated fetch with BASE_URL
             fetch(`${BASE_URL}/details?symbol=${query}`)
                 .then(res => res.json())
                 .then(data => {
@@ -118,20 +117,12 @@
                     document.getElementById('peRatio').innerText = data.pe_ratio;
                     document.getElementById('high52').innerText = `$${data.high_52}`;
                     document.getElementById('low52').innerText = `$${data.low_52}`;
-                })
-                .catch(err => console.error("Details error:", err));
+                });
 
-            // 2. Fetch Chart Data
             fetch(`${BASE_URL}/stock?symbol=${query}`)
                 .then(res => res.json())
-                .then(data => {
-                    if(data.dates && data.prices) {
-                        drawChart(data.dates, [{ label: 'Price', data: data.prices, isMain: true }]);
-                    }
-                })
-                .catch(err => console.error("Chart error:", err));
+                .then(data => drawChart(data.dates, [{ label: 'Price', data: data.prices, isMain: true }]));
 
-            // 3. Update AI Panels
             updateAIPanels(query);
         }
 
@@ -163,19 +154,12 @@
         }
 
         function updateAIPanels(query) {
-            fetch(`${BASE_URL}/predict?symbol=${query}`)
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
-                })
-                .catch(() => document.getElementById('aiPredictionText').innerText = "Prediction unavailable");
-
-            fetch(`${BASE_URL}/sentiment?symbol=${query}`)
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('newsSentimentText').innerText = data.sentiment;
-                })
-                .catch(() => document.getElementById('newsSentimentText').innerText = "Sentiment analysis failed");
+            fetch(`${BASE_URL}/predict?symbol=${query}`).then(res => res.json()).then(data => {
+                document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
+            });
+            fetch(`${BASE_URL}/sentiment?symbol=${query}`).then(res => res.json()).then(data => {
+                document.getElementById('newsSentimentText').innerText = data.sentiment;
+            });
         }
 
         function toggleChat() {
@@ -200,13 +184,11 @@
                     box.scrollTop = box.scrollHeight;
                 })
                 .catch(() => {
-                    box.innerHTML += `<div class="text-red-400 italic text-xs">AI currently offline.</div>`;
+                    box.innerHTML += `<div class="text-red-400 italic text-xs">Offline... check terminal</div>`;
                 });
         }
 
-        document.getElementById('chatInput').addEventListener('keypress', (e) => { 
-            if (e.key === 'Enter') sendChatMessage(); 
-        });
+        document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
 
         function renderWatchlist() {
             const list = document.getElementById('watchlist');
@@ -222,11 +204,7 @@
         function addToWatchlist() {
             const s = document.getElementById('tickerName').innerText;
             const stocks = JSON.parse(localStorage.getItem('stocks')) || [];
-            if (!stocks.includes(s)) { 
-                stocks.push(s); 
-                localStorage.setItem('stocks', JSON.stringify(stocks)); 
-                renderWatchlist(); 
-            }
+            if (!stocks.includes(s)) { stocks.push(s); localStorage.setItem('stocks', JSON.stringify(stocks)); renderWatchlist(); }
         }
 
         function removeFromWatchlist(s) {
