@@ -20,12 +20,8 @@ else:
     client = genai.Client(api_key=api_key)
 
 app = Flask(__name__)
-
-# 3. ALLOW GITHUB TO ACCESS THIS BACKEND (CORS)
-# This allows your specific GitHub Pages site to talk to this Render server
-CORS(app, resources={r"/*": {"origins": "https://aarustripathiallen-lgtm.github.io"}}) 
-
-# ... rest of your code remains the same ...
+from flask_cors import CORS
+CORS(app, resources={r"/*": {"origins": "https://aarustripathiallen-lgtm.github.io"}})
 
 stock_map = {
     "apple": "AAPL", "tesla": "TSLA", "nvidia": "NVDA",

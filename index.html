@@ -9,7 +9,6 @@
     <style>
         body { background-color: #0f172a; color: #f8fafc; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 0.75rem; }
-        /* Custom scrollbar for chat */
         #chat-messages::-webkit-scrollbar { width: 4px; }
         #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
@@ -89,24 +88,25 @@
 
     <script>
         let currentChart = null;
+        
+        // IMPORTANT: Updated to your Render URL
+        const BASE_URL = "https://stocky-api-7x6p.onrender.com";
 
         window.onload = () => {
             loadDashboard('TSLA');
             renderWatchlist();
         };
 
-        // DASHBOARD LOGIC
         async function loadDashboard(symbol = null) {
             const query = symbol || document.getElementById('searchInput').value || 'TSLA';
             
-            // Check for comparison mode
             if (query.includes(',')) {
-                enableComparisonMode(query);
+                // Comparison mode logic can be added here if needed
                 return;
             }
 
-            // Fetch details
-            fetch(`/details?symbol=${query}`)
+            // 1. Fetch Details
+            fetch(`${BASE_URL}/details?symbol=${query}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('tickerName').innerText = data.symbol;
@@ -118,14 +118,20 @@
                     document.getElementById('peRatio').innerText = data.pe_ratio;
                     document.getElementById('high52').innerText = `$${data.high_52}`;
                     document.getElementById('low52').innerText = `$${data.low_52}`;
-                });
+                })
+                .catch(err => console.error("Details error:", err));
 
-            // Fetch Chart
-            fetch(`/stock?symbol=${query}`)
+            // 2. Fetch Chart Data
+            fetch(`${BASE_URL}/stock?symbol=${query}`)
                 .then(res => res.json())
-                .then(data => drawChart(data.dates, [{ label: 'Price', data: data.prices, isMain: true }]));
+                .then(data => {
+                    if(data.dates && data.prices) {
+                        drawChart(data.dates, [{ label: 'Price', data: data.prices, isMain: true }]);
+                    }
+                })
+                .catch(err => console.error("Chart error:", err));
 
-            // AI Updates
+            // 3. Update AI Panels
             updateAIPanels(query);
         }
 
@@ -157,15 +163,21 @@
         }
 
         function updateAIPanels(query) {
-            fetch(`/predict?symbol=${query}`).then(res => res.json()).then(data => {
-                document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
-            });
-            fetch(`/sentiment?symbol=${query}`).then(res => res.json()).then(data => {
-                document.getElementById('newsSentimentText').innerText = data.sentiment;
-            });
+            fetch(`${BASE_URL}/predict?symbol=${query}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
+                })
+                .catch(() => document.getElementById('aiPredictionText').innerText = "Prediction unavailable");
+
+            fetch(`${BASE_URL}/sentiment?symbol=${query}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('newsSentimentText').innerText = data.sentiment;
+                })
+                .catch(() => document.getElementById('newsSentimentText').innerText = "Sentiment analysis failed");
         }
 
-        // CHATBOT LOGIC
         function toggleChat() {
             const win = document.getElementById('chat-window');
             win.classList.toggle('hidden');
@@ -181,21 +193,21 @@
             box.innerHTML += `<div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">${msg}</div>`;
             input.value = '';
 
-            fetch(`/chat?message=${encodeURIComponent(msg)}`)
+            fetch(`${BASE_URL}/chat?message=${encodeURIComponent(msg)}`)
                 .then(res => res.json())
                 .then(data => {
                     box.innerHTML += `<div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">${data.reply}</div>`;
                     box.scrollTop = box.scrollHeight;
                 })
                 .catch(() => {
-                    box.innerHTML += `<div class="text-red-400 italic text-xs">Offline... check terminal</div>`;
+                    box.innerHTML += `<div class="text-red-400 italic text-xs">AI currently offline.</div>`;
                 });
         }
 
-        // Enter key to send
-        document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+        document.getElementById('chatInput').addEventListener('keypress', (e) => { 
+            if (e.key === 'Enter') sendChatMessage(); 
+        });
 
-        // WATCHLIST
         function renderWatchlist() {
             const list = document.getElementById('watchlist');
             const stocks = JSON.parse(localStorage.getItem('stocks')) || ['TSLA', 'AAPL', 'NVDA'];
@@ -210,7 +222,11 @@
         function addToWatchlist() {
             const s = document.getElementById('tickerName').innerText;
             const stocks = JSON.parse(localStorage.getItem('stocks')) || [];
-            if (!stocks.includes(s)) { stocks.push(s); localStorage.setItem('stocks', JSON.stringify(stocks)); renderWatchlist(); }
+            if (!stocks.includes(s)) { 
+                stocks.push(s); 
+                localStorage.setItem('stocks', JSON.stringify(stocks)); 
+                renderWatchlist(); 
+            }
         }
 
         function removeFromWatchlist(s) {
