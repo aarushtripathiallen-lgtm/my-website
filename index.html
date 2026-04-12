@@ -168,25 +168,46 @@
         }
 
         function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const msg = input.value.trim();
-            const box = document.getElementById('chat-messages');
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    const box = document.getElementById('chat-messages');
 
-            if (!msg) return;
+    if (!msg) return;
 
-            box.innerHTML += `<div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">${msg}</div>`;
-            input.value = '';
+    // Show user message
+    box.innerHTML += `
+        <div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">
+            ${msg}
+        </div>
+    `;
 
-            fetch(`${BASE_URL}/chat?message=${encodeURIComponent(msg)}`)
-                .then(res => res.json())
-                .then(data => {
-                    box.innerHTML += `<div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">${data.reply}</div>`;
-                    box.scrollTop = box.scrollHeight;
-                })
-                .catch(() => {
-                    box.innerHTML += `<div class="text-red-400 italic text-xs">Offline... check terminal</div>`;
-                });
-        }
+    input.value = '';
+
+    fetch(`${BASE_URL}/chat?message=${encodeURIComponent(msg)}`)
+        .then(res => res.json())
+        .then(data => {
+            console.log("CHAT RESPONSE:", data);
+
+            const reply = data.reply || data.error || "No response";
+
+            box.innerHTML += `
+                <div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">
+                    ${reply}
+                </div>
+            `;
+
+            box.scrollTop = box.scrollHeight;
+        })
+        .catch((err) => {
+            console.error("CHAT ERROR:", err);
+
+            box.innerHTML += `
+                <div class="text-red-400 italic text-xs">
+                    Server error... try again
+                </div>
+            `;
+        });
+}
 
         document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
 
