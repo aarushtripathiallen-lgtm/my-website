@@ -78,58 +78,39 @@ def details():
 
     try:
         ticker = yf.Ticker(symbol)
-<<<<<<< HEAD
-=======
 
-        # 🔥 IMPORTANT FIX: fallback using history
->>>>>>> 96d794b (Fixed chat display)
-        hist = ticker.history(period="2d")
+        hist = ticker.history(period="5d")
 
         if hist.empty:
-            return jsonify({"error": "No data"}), 404
+            raise Exception("No data")
 
         latest_price = round(hist["Close"].iloc[-1], 2)
         prev_price = round(hist["Close"].iloc[-2], 2) if len(hist) > 1 else latest_price
         change = round(latest_price - prev_price, 2)
 
-<<<<<<< HEAD
-=======
-        # Try info but don't depend on it
->>>>>>> 96d794b (Fixed chat display)
-        info = ticker.info if ticker.info else {}
-
-        market_cap = info.get("marketCap", 0)
-        pe_ratio = info.get("trailingPE", "N/A")
-        high_52 = info.get("fiftyTwoWeekHigh", latest_price)
-        low_52 = info.get("fiftyTwoWeekLow", latest_price)
-
-<<<<<<< HEAD
-=======
-        # Format market cap
->>>>>>> 96d794b (Fixed chat display)
-        if market_cap:
-            if market_cap > 1_000_000_000_000:
-                mc_str = f"${market_cap / 1_000_000_000_000:.2f}T"
-            elif market_cap > 1_000_000_000:
-                mc_str = f"${market_cap / 1_000_000_000:.2f}B"
-            else:
-                mc_str = f"${market_cap:,}"
-        else:
-            mc_str = "N/A"
-
         return jsonify({
             "symbol": symbol,
             "price": latest_price,
             "change": change,
-            "market_cap": mc_str,
-            "pe_ratio": pe_ratio,
-            "high_52": high_52,
-            "low_52": low_52
+            "market_cap": "N/A",
+            "pe_ratio": "N/A",
+            "high_52": latest_price,
+            "low_52": latest_price
         })
 
     except Exception as e:
         print("DETAILS ERROR:", e)
-        return jsonify({"error": str(e)}), 500
+
+        # 🔥 FALLBACK DATA (prevents undefined UI)
+        return jsonify({
+            "symbol": symbol,
+            "price": 0,
+            "change": 0,
+            "market_cap": "N/A",
+            "pe_ratio": "N/A",
+            "high_52": 0,
+            "low_52": 0
+        })
 
 # ---------------- PREDICTION ----------------
 @app.route("/predict")
