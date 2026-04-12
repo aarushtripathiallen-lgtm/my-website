@@ -19,6 +19,11 @@ else:
     client = genai.Client(api_key=api_key)
 
 app = Flask(__name__)
+<<<<<<< HEAD
+=======
+
+# CORS FIX
+>>>>>>> 96d794b (Fixed chat display)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 stock_map = {
@@ -42,19 +47,30 @@ def stock():
         if data.empty:
             return jsonify({"error": "No data found"}), 404
 
+<<<<<<< HEAD
         prices = data["Close"].ffill().round(2).tolist()
 
         return jsonify({
             "symbol": symbol,
             "dates": data.index.strftime("%Y-%m-%d").tolist(),
             "prices": prices
+=======
+        return jsonify({
+            "symbol": symbol,
+            "dates": data.index.strftime("%Y-%m-%d").tolist(),
+            "prices": data["Close"].fillna(method="ffill").round(2).tolist()
+>>>>>>> 96d794b (Fixed chat display)
         })
 
     except Exception as e:
         print("STOCK ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
+<<<<<<< HEAD
 # ---------------- DETAILS ----------------
+=======
+# ---------------- DETAILS (FIXED) ----------------
+>>>>>>> 96d794b (Fixed chat display)
 @app.route("/details")
 def details():
     query = request.args.get("symbol", "AAPL")
@@ -62,6 +78,11 @@ def details():
 
     try:
         ticker = yf.Ticker(symbol)
+<<<<<<< HEAD
+=======
+
+        # 🔥 IMPORTANT FIX: fallback using history
+>>>>>>> 96d794b (Fixed chat display)
         hist = ticker.history(period="2d")
 
         if hist.empty:
@@ -71,6 +92,10 @@ def details():
         prev_price = round(hist["Close"].iloc[-2], 2) if len(hist) > 1 else latest_price
         change = round(latest_price - prev_price, 2)
 
+<<<<<<< HEAD
+=======
+        # Try info but don't depend on it
+>>>>>>> 96d794b (Fixed chat display)
         info = ticker.info if ticker.info else {}
 
         market_cap = info.get("marketCap", 0)
@@ -78,6 +103,10 @@ def details():
         high_52 = info.get("fiftyTwoWeekHigh", latest_price)
         low_52 = info.get("fiftyTwoWeekLow", latest_price)
 
+<<<<<<< HEAD
+=======
+        # Format market cap
+>>>>>>> 96d794b (Fixed chat display)
         if market_cap:
             if market_cap > 1_000_000_000_000:
                 mc_str = f"${market_cap / 1_000_000_000_000:.2f}T"
@@ -128,15 +157,25 @@ def predict():
         print("PREDICT ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
+<<<<<<< HEAD
 # ---------------- SENTIMENT (WITH FALLBACK) ----------------
 @app.route("/sentiment")
 def sentiment():
+=======
+# ---------------- SENTIMENT ----------------
+@app.route("/sentiment")
+def sentiment():
+    if client is None:
+        return jsonify({"error": "AI not configured"}), 500
+
+>>>>>>> 96d794b (Fixed chat display)
     query = request.args.get("symbol", "AAPL")
     symbol = get_symbol(query)
 
     try:
         url = f"https://news.google.com/rss/search?q={symbol}+stock"
         feed = feedparser.parse(url)
+<<<<<<< HEAD
 
         headlines = [entry.title for entry in feed.entries[:5]]
 
@@ -179,11 +218,28 @@ def sentiment():
             sentiment = "⚖️ Neutral sentiment based on recent news."
 
         return jsonify({"sentiment": sentiment})
+=======
+
+        headlines = [entry.title for entry in feed.entries[:5]]
+
+        if not headlines:
+            return jsonify({"sentiment": "No news found."})
+
+        prompt = f"Analyze sentiment for {symbol} stock: {' | '.join(headlines)}"
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+
+        return jsonify({"sentiment": response.text})
+>>>>>>> 96d794b (Fixed chat display)
 
     except Exception as e:
         print("SENTIMENT ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
+<<<<<<< HEAD
 # ---------------- CHAT (WITH FALLBACK) ----------------
 @app.route("/chat")
 def chat():
@@ -217,6 +273,30 @@ def chat():
         reply = "I'm currently in offline mode, but still here to help!"
 
     return jsonify({"reply": reply})
+=======
+# ---------------- CHAT ----------------
+@app.route("/chat")
+def chat():
+    if client is None:
+        return jsonify({"reply": "AI not available"})
+
+    user_message = request.args.get("message", "")
+
+    if not user_message:
+        return jsonify({"reply": "Please ask something."})
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=user_message
+        )
+
+        return jsonify({"reply": response.text})
+
+    except Exception as e:
+        print("CHAT ERROR:", e)
+        return jsonify({"reply": "AI error occurred"})
+>>>>>>> 96d794b (Fixed chat display)
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
