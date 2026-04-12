@@ -6,11 +6,18 @@
     <title>Stocky - Financial Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body { background-color: #0f172a; color: #f8fafc; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 0.75rem; }
         #chat-messages::-webkit-scrollbar { width: 4px; }
         #chat-messages::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        /* ADDED: Clean up markdown paragraph spacing in chat */
+        .markdown-body p { margin-bottom: 0.5rem; }
+        .markdown-body p:last-child { margin-bottom: 0; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.5rem; }
+        .markdown-body strong { color: #60a5fa; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 font-sans pb-24">
@@ -19,6 +26,7 @@
         <h1 class="text-2xl font-bold text-blue-400">📈 Stocky Finance</h1>
         <div class="flex gap-2">
             <input type="text" id="searchInput" placeholder="Search symbol (e.g. TSLA)" 
+                   onkeypress="if(event.key === 'Enter') loadDashboard()"
                    class="px-4 py-2 rounded bg-slate-800 border border-slate-600 focus:outline-none focus:border-blue-400 text-white w-40 md:w-64">
             <button onclick="loadDashboard()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold transition">Search</button>
         </div>
@@ -53,13 +61,13 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-panel p-6">
+                <div class="glass-panel p-6 overflow-y-auto max-h-64">
                     <h3 class="text-xl font-bold mb-3 text-purple-400">🧠 AI Trend Prediction</h3>
-                    <p id="aiPredictionText" class="text-slate-300 text-sm italic">Loading forecast...</p>
+                    <div id="aiPredictionText" class="text-slate-300 text-sm italic markdown-body">Loading forecast...</div>
                 </div>
-                <div class="glass-panel p-6">
+                <div class="glass-panel p-6 overflow-y-auto max-h-64">
                     <h3 class="text-xl font-bold mb-3 text-blue-400">📰 News Sentiment</h3>
-                    <p id="newsSentimentText" class="text-slate-300 text-sm italic">Analyzing headlines...</p>
+                    <div id="newsSentimentText" class="text-slate-300 text-sm markdown-body">Analyzing headlines...</div>
                 </div>
             </div>
         </main>
@@ -89,7 +97,6 @@
     <script>
         let currentChart = null;
 
-        // CRITICAL FIX: Points to your Render server instead of GitHub
         const BASE_URL = "https://stocky-api-7x6p.onrender.com";
 
         window.onload = () => {
@@ -104,7 +111,10 @@
                 return;
             }
 
-            // Updated fetch with BASE_URL
+            // ADDED: Loading state for AI panels
+            document.getElementById('aiPredictionText').innerHTML = "<em>Loading forecast...</em>";
+            document.getElementById('newsSentimentText').innerHTML = "<em>Analyzing headlines...</em>";
+
             fetch(`${BASE_URL}/details?symbol=${query}`)
                 .then(res => res.json())
                 .then(data => {
@@ -155,10 +165,11 @@
 
         function updateAIPanels(query) {
             fetch(`${BASE_URL}/predict?symbol=${query}`).then(res => res.json()).then(data => {
-                document.getElementById('aiPredictionText').innerText = `Forecast: $${data.prediction.join(', $')}`;
+                document.getElementById('aiPredictionText').innerHTML = `<strong>Forecast:</strong> $${data.prediction.join(', $')}`;
             });
             fetch(`${BASE_URL}/sentiment?symbol=${query}`).then(res => res.json()).then(data => {
-                document.getElementById('newsSentimentText').innerText = data.sentiment;
+                // ADDED: marked.parse to render the markdown formatting
+                document.getElementById('newsSentimentText').innerHTML = marked.parse(data.sentiment);
             });
         }
 
@@ -168,46 +179,51 @@
         }
 
         function sendChatMessage() {
-    const input = document.getElementById('chatInput');
-    const msg = input.value.trim();
-    const box = document.getElementById('chat-messages');
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            const box = document.getElementById('chat-messages');
 
-    if (!msg) return;
+            if (!msg) return;
 
-    // Show user message
-    box.innerHTML += `
-        <div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">
-            ${msg}
-        </div>
-    `;
-
-    input.value = '';
-
-    fetch(`${BASE_URL}/chat?message=${encodeURIComponent(msg)}`)
-        .then(res => res.json())
-        .then(data => {
-            console.log("CHAT RESPONSE:", data);
-
-            const reply = data.reply || data.error || "No response";
-
+            // Show user message
             box.innerHTML += `
-                <div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm">
-                    ${reply}
+                <div class="bg-blue-600/30 p-3 rounded-lg ml-auto w-fit max-w-[80%] text-right border border-blue-500/20">
+                    ${msg}
                 </div>
             `;
-
+            
+            // ADDED: Auto-scroll to bottom
             box.scrollTop = box.scrollHeight;
-        })
-        .catch((err) => {
-            console.error("CHAT ERROR:", err);
+            input.value = '';
 
-            box.innerHTML += `
-                <div class="text-red-400 italic text-xs">
-                    Server error... try again
-                </div>
-            `;
-        });
-}
+            fetch(`${BASE_URL}/chat?message=${encodeURIComponent(msg)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const reply = data.reply || data.error || "No response";
+
+                    // ADDED: marked.parse to nicely format the AI's response
+                    const formattedReply = marked.parse(reply);
+
+                    box.innerHTML += `
+                        <div class="bg-slate-700 p-3 rounded-lg w-fit max-w-[80%] shadow-sm markdown-body">
+                            ${formattedReply}
+                        </div>
+                    `;
+
+                    // ADDED: Auto-scroll to bottom again after AI replies
+                    box.scrollTop = box.scrollHeight;
+                })
+                .catch((err) => {
+                    console.error("CHAT ERROR:", err);
+
+                    box.innerHTML += `
+                        <div class="text-red-400 italic text-xs ml-2 mb-2">
+                            Server error... try again
+                        </div>
+                    `;
+                    box.scrollTop = box.scrollHeight;
+                });
+        }
 
         document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
 
